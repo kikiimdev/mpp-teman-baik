@@ -1,0 +1,108 @@
+[phases.setup]
+nixPkgs = [
+  "...",
+  # https://nixos.org/manual/nixpkgs/stable/#var-meta-priority
+  '(lib.recursiveUpdate php83Packages.composer { meta.priority = php83Packages.composer.meta.priority or 0 -1; })',
+]
+
+[phases.postbuild]
+cmds = [
+    "php /app/artisan migrate --force",
+    "php /app/artisan optimize:clear",
+    "php /app/artisan storage:link",
+
+    "chown -R www-data:www-data storage bootstrap/cache",
+    "chmod -R 777 storage bootstrap/cache",
+]
+dependsOn = ["build"]
+
+[staticAssets]
+"nginx.template.conf" = '''
+worker_processes 5;
+daemon off;
+worker_rlimit_nofile 8192;
+events {
+  worker_connections  4096;  # Default: 1024
+}
+http {
+    include    $!{nginx}/conf/mime.types;
+    index    index.html index.htm index.php;
+    default_type application/octet-stream;
+    log_format   main '$remote_addr - $remote_user [$time_local]  $status '
+        '"$request" $body_bytes_sent "$http_referer" '
+        '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /dev/stdout;
+    error_log /dev/stdout;
+    sendfile     on;
+    tcp_nopush   on;
+    server_names_hash_bucket_size 128; # this seems to be required for some vhosts
+    server {
+        listen ${PORT};
+        listen [::]:${PORT};
+        server_name localhost;
+        $if(NIXPACKS_PHP_ROOT_DIR) (
+            root ${NIXPACKS_PHP_ROOT_DIR};
+        ) else (
+            root /app;
+        )
+
+        # Security headers
+        add_header X-Frame-Options "" always;
+        # add_header X-Frame-Options "SAMEORIGIN" always; # pake ini kalo tidak di embed/iframe banjarmasin pintar
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none';" always;
+
+        # Disable PHP in storage/
+        location ~* ^/storage/.*\.php$ {
+            deny all;
+            return 403;
+        }
+
+        index index.php;
+
+        charset utf-8;
+
+        $if(IS_LARAVEL) (
+            location / {
+                try_files $uri $uri/ /index.php?$query_string;
+            }
+        ) else ()
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        $if(IS_LARAVEL) (
+            error_page 404 /index.php;
+        ) else ()
+
+        # batas file upload, ada 3, edit aja semua "6M"
+        client_max_body_size 6M;
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_param PHP_VALUE "upload_max_filesize=6M \n post_max_size=6M";
+            include $!{nginx}/conf/fastcgi_params;
+            include $!{nginx}/conf/fastcgi.conf;
+
+            add_header X-Frame-Options "" always;
+        }
+
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
+}'''
+"php-fpm.conf" = '''
+[www]
+listen = 127.0.0.1:9000
+user = nobody
+pm = dynamic
+pm.max_children = 50
+pm.min_spare_servers = 4
+pm.max_spare_servers = 32
+pm.start_servers = 18
+clear_env = no
+catch_workers_output = yes
+'''
