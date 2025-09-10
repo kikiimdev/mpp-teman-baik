@@ -7,7 +7,6 @@ nixPkgs = [
 
 [phases.postbuild]
 cmds = [
-    "php /app/artisan migrate --force",
     "php /app/artisan optimize:clear",
     "php /app/artisan storage:link",
 
