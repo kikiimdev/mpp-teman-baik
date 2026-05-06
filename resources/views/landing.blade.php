@@ -97,6 +97,16 @@
             </div>
             <div class="position-absolute w-100 bottom-0">
                 <div class="container-fluid">
+                    <div class="row justify-content-end text-white d-none" id="IKM">
+                        <div class="col-auto">
+                            <h4 class="text-end mb-0">IKM MPP</h4>
+                            <h6>Tahun <span id="tahun_ikm"></span> - <span id="bulan_ikm"></span></h6>
+                        </div>
+                        <div class="col-auto h1">:</div>
+                        <div class="col-auto">
+                            <h1 id="indeks_ikm">99,99</h1>
+                        </div>
+                    </div>
                     <div class="row pb-2">
                         <div class="col-lg-6">
                             <div class="row">
@@ -129,6 +139,41 @@
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
+        <script>
+            const url = "https://sheets.googleapis.com/v4/spreadsheets/1C-ip9mD5N041JsOXjDb5CbCJG3pAyOJye8lzAkVgAXA/values/Sheet1!B1:B3?key=AIzaSyDcYYh_UzZeojdc31zFjce4WW_BRHMB3Ks";
+
+            // Fungsi untuk mengeset nilai ke HTML atau memberikan tanda strip (-) jika error
+            function tampilkanData(tahun, bulan, ikm) {
+                document.getElementById('tahun_ikm').innerText = tahun || "-";
+                document.getElementById('bulan_ikm').innerText = bulan || "-";
+                document.getElementById('indeks_ikm').innerText = ikm || "-";
+            }
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.values && data.values.length >= 3) {
+                        document.getElementById('IKM').classList.remove('d-none');
+                        const tahun = data.values[0][0]; // Baris 1 Kolom B
+                        const bulan = data.values[1][0]; // Baris 2 Kolom B
+                        const ikm = data.values[2][0]; // Baris 3 Kolom B
+
+                        tampilkanData(tahun, bulan, ikm);
+                    } else {
+                        tampilkanData("-", "-", "-");
+                    }
+                })
+                .catch(error => {
+                    console.error('Ada masalah saat mengambil data:', error);
+                    // Jika URL salah, tidak ditemukan, atau masalah jaringan
+                    tampilkanData("-", "-", "-");
+                });
+        </script>
     </body>
 
 </html>

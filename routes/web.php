@@ -20,10 +20,6 @@ use App\Mail\SendMail;
 |
 */
 
-Route::get('/lp', function () {
-    return view('landing');
-});
-
 Route::get('/download', [DashboardController::class, 'exportData'])->middleware('auth');
 
 Route::get('/', function () {
