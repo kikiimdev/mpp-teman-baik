@@ -1,0 +1,55 @@
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	{$CADDY_GLOBAL_OPTIONS}
+
+	log {
+		format json
+		output stderr
+		level INFO
+	}
+
+	frankenphp {
+		{$FRANKENPHP_CONFIG}
+	}
+}
+
+{$CADDY_EXTRA_CONFIG}
+
+:{$PORT:80} {
+	root * /app/public
+
+	encode zstd br gzip
+
+	# Request body size limit (matches nixpacks 6M limit)
+	request_body {
+		max_size 8MB
+	}
+
+	# Deny execution of PHP files in storage and hidden files
+	@blockedStorage path /storage/*.php /storage/*/*.php /storage/*/*/*.php
+	respond @blockedStorage 403
+
+	@hiddenFiles path */.*
+	respond @hiddenFiles 404
+
+	# Standard security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+		-X-Powered-By
+	}
+
+	file_server {
+		hide .git
+		hide .env*
+	}
+
+	{$CADDY_SERVER_EXTRA_DIRECTIVES}
+
+	php_server
+}
